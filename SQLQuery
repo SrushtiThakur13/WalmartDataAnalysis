@@ -1,0 +1,226 @@
+--Checking the dataset
+SELECT * FROM `dataset.table`
+
+--Feature Engineering 
+--Adding a new coulmn(time_of_day) to check which part of the day has most sales
+--Checking if the case works properly
+Select time,
+    (CASE
+     WHEN 'time' BETWEEN "00:00:00" AND "12:00:00" THEN "Morning"
+     WHEN 'time' BETWEEN "12:01:00" AND "16:00:00" THEN "Afternoon"
+     ELSE "Evening"
+     END
+    ) AS time_of_day
+     From `dataset.table` 
+
+ --Adding the column to table
+ ALTER TABLE `dataset.table` 
+ADD COLUMN time_of_day STRING;
+
+CREATE OR REPLACE TABLE `dataset.table_temp` AS
+SELECT
+  *,
+  CASE 
+    WHEN time BETWEEN "00:00:00" AND "12:00:00" THEN "Morning"
+    WHEN time BETWEEN "12:01:00" AND "16:00:00" THEN "Afternoon"
+    ELSE "Evening"
+  END AS time_of_day
+FROM `dataset.table`;
+
+-- Using the temporary table for your analysis(I use this as I have free tier)
+CREATE OR REPLACE TABLE `dataset.table_temp` AS
+SELECT
+  *,
+  CASE 
+    WHEN time BETWEEN "00:00:00" AND "12:00:00" THEN "Morning"
+    WHEN time BETWEEN "12:01:00" AND "16:00:00" THEN "Afternoon"
+    ELSE "Evening"
+  END AS time_of_day , FORMAT_DATE('%A', date) AS day_of_week, FORMAT_DATE('%B', date) AS month_name
+FROM `dataset.table`;
+
+
+SELECT * FROM `dataset.table_temp`
+
+--EDA(Exploratory Data Analysis)
+--Checking uniquie cities and branch corresponding to it
+Select DISTINCT City,Branch from `dataset.table_temp`
+ 
+ --unique product lines
+ Select COUNT(distinct Product_line) from `dataset.table_temp`
+
+--Most comomn Payment method
+SELECT payment,COUNT(Payment ) as cnt From `dataset.table_temp` 
+Group by payment order by cnt desc
+
+--Most selling product
+SELECT Product_line,COUNT(Product_line) as total_p From `dataset.table_temp` 
+Group by Product_line order by total_p desc
+
+--total revenue by month
+SELECT month_name AS month, SUM(total) AS total_sales FROM `dataset.table_temp` group by month order by total_sales desc
+
+--month having largest cogs
+SELECT month_name as month, SUM(cogs) as cogs from `dataset.table_temp` group by month order by cogs desc
+
+--product line having the largest revenue
+Select Product_line, SUM(Total) as total_sales from `dataset.table_temp` group by Product_line order by total_sales desc 
+
+--city with the largest revenue
+Select city, SUM(Total) as total_sales from `dataset.table_temp` group by city order by total_sales desc 
+
+--product line having largest Value added tax
+SELECT
+	product_line,
+	AVG(Tax_5_) as avg_tax
+FROM `dataset.table_temp`
+GROUP BY product_line
+ORDER BY avg_tax DESC;
+
+
+--adding a remark to each product line according to its sale
+Select AVG(quantity) as avg_quantity from `dataset.table_temp`;
+
+SELECT Product_line, 
+       case
+          WHEN AVG(quantity) > 6 THEN "Good"
+        ELSE "Bad"
+    END AS remark
+FROM `dataset.table_temp`
+GROUP BY product_line;
+
+--branch that sells more products than average product sold
+SELECT 
+	branch, 
+    SUM(quantity) AS qnty
+FROM `dataset.table_temp`
+GROUP BY branch
+HAVING SUM(quantity) > (SELECT AVG(quantity) FROM `dataset.table_temp`);
+
+--most common product line by gender
+SELECT gender,product_line,COUNT(gender) as cnt from `dataset.table_temp` group by Gender,Product_line order by cnt desc
+
+--average rating of each product line
+SELECT Product_line,round(avg(Rating),2) as avg_rating from `dataset.table_temp` group by Product_line order by avg_rating desc
+
+--unique customer types 
+SELECT
+	DISTINCT customer_type
+FROM `dataset.table_temp`;
+
+--unique payment methods 
+SELECT
+	DISTINCT payment
+FROM sales;
+
+
+--count of most common customer type
+SELECT
+	customer_type,
+	count(*) as cnt
+FROM `dataset.table_temp`
+GROUP BY customer_type
+ORDER BY cnt DESC;
+
+--customer type that buys the most
+SELECT
+	customer_type,
+    COUNT(*) as cnt
+FROM `dataset.table_temp`
+GROUP BY customer_type order by cnt;
+
+
+--gender of most of the customers
+SELECT
+	gender,
+	COUNT(*) as gender_cnt
+FROM `dataset.table_temp`
+GROUP BY gender
+ORDER BY gender_cnt DESC;
+
+-- gender distribution per branch
+SELECT
+	gender,
+	COUNT(*) as gender_cnt
+FROM `dataset.table_temp`
+WHERE branch = "C"
+GROUP BY gender
+ORDER BY gender_cnt DESC;
+-- Gender per branch is more or less the same hence
+
+--time of the day when customers give most ratings
+SELECT
+	time_of_day,
+	AVG(rating) AS avg_rating
+FROM `dataset.table_temp`
+GROUP BY time_of_day
+ORDER BY avg_rating DESC;
+-- Looks like time of the day does not really affect the rating
+
+-- time of the day when customers give most ratings per branch
+SELECT
+	time_of_day,
+	AVG(rating) AS avg_rating
+FROM `dataset.table_temp`
+WHERE branch = "A"
+GROUP BY time_of_day
+ORDER BY avg_rating DESC;
+-- Branch A and C are doing well in ratings
+
+
+--day fo the week having the best avg ratings
+SELECT
+	day_of_week,
+	AVG(rating) AS avg_rating
+FROM `dataset.table_temp`
+GROUP BY day_of_week 
+ORDER BY avg_rating DESC;
+-- Mon, Tue and Friday are the top best days for good ratings
+--how many sales are made on these days
+Select day_of_week,SUM(total) as total_sales from `dataset.table_temp` group by day_of_week
+
+
+--day of the week having the best average ratings per branch
+SELECT 
+	day_of_week,
+	COUNT(day_of_week) total_sales
+FROM dataset.table_temp
+WHERE branch = "C"
+GROUP BY day_of_week
+ORDER BY total_sales DESC;
+-------
+-- Number of sales made in each time of the day per weekday 
+SELECT
+	time_of_day,
+	COUNT(*) AS total_sales
+FROM `dataset.table_temp`
+WHERE day_of_week = "Sunday"
+GROUP BY time_of_day 
+ORDER BY total_sales DESC;
+-- Evenings experience most sale
+
+--customer types that brings the most revenue
+SELECT
+	customer_type,
+	SUM(total) AS total_revenue
+FROM `dataset.table_temp`
+GROUP BY customer_type
+ORDER BY total_revenue;
+
+--City having the largest tax/VAT percent
+SELECT
+	city,
+    ROUND(AVG(Tax_5_), 2) AS avg_tax_pct
+FROM `dataset.table_temp`
+GROUP BY city 
+ORDER BY avg_tax_pct DESC;
+
+--customer type that pays the most in VAT(value added tax)
+SELECT
+	customer_type,
+	AVG(Tax_5_) AS total_tax
+FROM `dataset.table_temp`
+GROUP BY customer_type
+ORDER BY total_tax;
+
+
+
